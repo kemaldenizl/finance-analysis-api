@@ -116,6 +116,28 @@ public static class RateLimitExtension
                         QueueLimit = rateLimitOptions.ResetPassword.QueueLimit,
                         AutoReplenishment = rateLimitOptions.ResetPassword.AutoReplenishment
                     }));
+            
+            options.AddPolicy(RateLimitPolicyNames.VerifyEmail, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "verify-email"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.VerifyEmail.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.VerifyEmail.WindowSeconds),
+                        QueueLimit = rateLimitOptions.VerifyEmail.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.VerifyEmail.AutoReplenishment
+                    }));
+
+            options.AddPolicy(RateLimitPolicyNames.ResendVerification, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "resend-verification"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ResendVerification.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ResendVerification.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ResendVerification.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ResendVerification.AutoReplenishment
+                    }));
         });
 
         return services;

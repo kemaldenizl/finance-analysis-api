@@ -5,12 +5,24 @@ using AppLoginResponse = Security.Application.Auth.Login.LoginResponse;
 using AppRefreshTokenResponse = Security.Application.Auth.Refresh.RefreshTokenResponse;
 using AppRegisterResponse = Security.Application.Auth.Register.RegisterResponse;
 using AppForgotPasswordResponse = Security.Application.Auth.PasswordReset.Dtos.ForgotPasswordResponse;
+using AppResendVerificationResponse = Security.Application.Auth.EmailVerification.Dtos.ResendVerificationResponse;
 using System.Text.Json;
 
 namespace Security.API.Common.ErrorMapping;
 
 public static class ApplicationResultMapper
 {
+    public static IResult ToApiResult(this HttpContext httpContext, Result<AppResendVerificationResponse> result)
+    {
+        if (result.IsSuccess)
+        {
+            var response = new Contracts.Auth.ResendVerificationResponse(result.Value.Message);
+            return Results.Accepted(value: response);
+        }
+
+        return MapFailure(httpContext, result);
+    }
+
     public static IResult ToApiResult(this HttpContext httpContext, Result<AppForgotPasswordResponse> result)
     {
         if (result.IsSuccess)
@@ -194,6 +206,30 @@ public static class ApplicationResultMapper
                 httpContext.CreateProblemDetails(
                     StatusCodes.Status400BadRequest,
                     "Used password reset token",
+                    result.Error.Description)),
+            
+            "auth.invalid_email_verification_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Invalid email verification token",
+                    result.Error.Description)),
+
+            "auth.expired_email_verification_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Expired email verification token",
+                    result.Error.Description)),
+
+            "auth.used_email_verification_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Used email verification token",
+                    result.Error.Description)),
+
+            "auth.email_already_verified" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Email already verified",
                     result.Error.Description)),
 
             _ => httpContext.ToProblemResult(
