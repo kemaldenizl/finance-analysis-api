@@ -202,6 +202,9 @@ public static class DependencyInjection
         services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
         services.AddSingleton<IPasswordResetTokenGenerator, PasswordResetTokenGenerator>();
 
+        services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
+        services.AddSingleton<IEmailVerificationTokenGenerator, EmailVerificationTokenGenerator>();
+
         return services;
     }
 }
