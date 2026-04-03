@@ -4,12 +4,24 @@ using Security.Application.Common.Results;
 using AppLoginResponse = Security.Application.Auth.Login.LoginResponse;
 using AppRefreshTokenResponse = Security.Application.Auth.Refresh.RefreshTokenResponse;
 using AppRegisterResponse = Security.Application.Auth.Register.RegisterResponse;
+using AppForgotPasswordResponse = Security.Application.Auth.PasswordReset.Dtos.ForgotPasswordResponse;
 using System.Text.Json;
 
 namespace Security.API.Common.ErrorMapping;
 
 public static class ApplicationResultMapper
 {
+    public static IResult ToApiResult(this HttpContext httpContext, Result<AppForgotPasswordResponse> result)
+    {
+        if (result.IsSuccess)
+        {
+            var response = new Contracts.Auth.ForgotPasswordResponse(result.Value.Message);
+            return Results.Accepted(value: response);
+        }
+
+        return MapFailure(httpContext, result);
+    }
+
     public static IResult ToApiResult(this HttpContext httpContext, Result result)
     {
         if (result.IsSuccess)
@@ -164,6 +176,24 @@ public static class ApplicationResultMapper
                 httpContext.CreateProblemDetails(
                     StatusCodes.Status409Conflict,
                     "Conflict",
+                    result.Error.Description)),
+            
+            "auth.invalid_password_reset_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Invalid password reset token",
+                    result.Error.Description)),
+
+            "auth.expired_password_reset_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Expired password reset token",
+                    result.Error.Description)),
+
+            "auth.used_password_reset_token" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Used password reset token",
                     result.Error.Description)),
 
             _ => httpContext.ToProblemResult(

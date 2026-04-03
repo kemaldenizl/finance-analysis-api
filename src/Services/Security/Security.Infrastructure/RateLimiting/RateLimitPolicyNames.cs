@@ -7,4 +7,6 @@ public static class RateLimitPolicyNames
     public const string Refresh = "rate-limit:refresh";
     public const string Logout = "rate-limit:logout";
     public const string Sessions = "rate-limit:sessions";
+    public const string ForgotPassword = "rate-limit:forgot-password";
+    public const string ResetPassword = "rate-limit:reset-password";
 }

@@ -9,6 +9,8 @@ public sealed class RateLimitOptions
     public FixedWindowPolicyOptions Refresh { get; init; } = new();
     public FixedWindowPolicyOptions Logout { get; init; } = new();
     public FixedWindowPolicyOptions Sessions { get; init; } = new();
+    public FixedWindowPolicyOptions ForgotPassword { get; init; } = new();
+    public FixedWindowPolicyOptions ResetPassword { get; init; } = new();
 }
 
 public sealed class FixedWindowPolicyOptions

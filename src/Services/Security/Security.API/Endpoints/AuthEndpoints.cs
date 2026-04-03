@@ -11,6 +11,8 @@ using Security.Application.Auth.Refresh;
 using Security.Application.Auth.Logout;
 using Security.Application.Common.Results;
 using Security.Infrastructure.RateLimiting;
+using Security.Application.Auth.PasswordReset.ForgotPassword;
+using Security.Application.Auth.PasswordReset.ResetPassword;
 
 namespace Security.API.Endpoints;
 
@@ -78,6 +80,29 @@ public static class AuthEndpoints
             .WithDescription("Revokes all sessions belonging to the current authenticated user.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/forgot-password", ForgotPasswordAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.ForgotPassword)
+            .WithName("ForgotPassword")
+            .WithSummary("Starts the password reset flow.")
+            .WithDescription("Generates a password reset token if the account exists.")
+            .Accepts<ForgotPasswordRequest>("application/json")
+            .Produces<ForgotPasswordResponse>(StatusCodes.Status202Accepted)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/reset-password", ResetPasswordAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.ResetPassword)
+            .WithName("ResetPassword")
+            .WithSummary("Completes the password reset flow.")
+            .WithDescription("Validates the password reset token and changes the user's password.")
+            .Accepts<ResetPasswordRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
             .WithOpenApi();
 
@@ -171,15 +196,28 @@ public static class AuthEndpoints
             return Results.Problem(
                 title: "Invalid token context",
                 detail: "The current access token does not contain a valid JWT identifier.",
-                statusCode: StatusCodes.Status400BadRequest);
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
 
-        var command = new LogoutAllCommand(
-            currentUser.UserId,
-            currentUser.AccessTokenJti,
-            currentAccessToken.ExpiresAtUtc
-        );
+        var command = new LogoutAllCommand(currentUser.UserId, currentUser.AccessTokenJti, currentAccessToken.ExpiresAtUtc);
+        var result = await sender.Send(command, cancellationToken);
 
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> ForgotPasswordAsync(ForgotPasswordRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken) 
+    {
+        var command = new ForgotPasswordCommand(request.Email);
+
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> ResetPasswordAsync(ResetPasswordRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken)
+    {
+        var command = new ResetPasswordCommand(request.Token, request.NewPassword);
         var result = await sender.Send(command, cancellationToken);
 
         return httpContext.ToApiResult(result);

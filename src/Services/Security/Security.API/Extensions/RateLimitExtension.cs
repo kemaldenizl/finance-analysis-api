@@ -94,6 +94,28 @@ public static class RateLimitExtension
                         QueueLimit = rateLimitOptions.Sessions.QueueLimit,
                         AutoReplenishment = rateLimitOptions.Sessions.AutoReplenishment
                     }));
+
+            options.AddPolicy(RateLimitPolicyNames.ForgotPassword, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "forgot-password"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ForgotPassword.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ForgotPassword.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ForgotPassword.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ForgotPassword.AutoReplenishment
+                    }));
+
+            options.AddPolicy(RateLimitPolicyNames.ResetPassword, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "reset-password"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ResetPassword.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ResetPassword.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ResetPassword.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ResetPassword.AutoReplenishment
+                    }));
         });
 
         return services;
