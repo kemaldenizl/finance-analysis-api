@@ -15,4 +15,7 @@ public static class AuthErrors
     public static readonly Error RefreshTokenReuseDetected = new("auth.refresh_token_reuse_detected", "Refresh token reuse detected. Session has been revoked.");
     public static readonly Error InvalidSession = new("auth.invalid_session", "Session is invalid.");
     public static readonly Error SessionNotFound = new("auth.session_not_found", "Session was not found.");
+    public static readonly Error InvalidPasswordResetToken = new("auth.invalid_password_reset_token", "Password reset token is invalid.");
+    public static readonly Error ExpiredPasswordResetToken = new("auth.expired_password_reset_token", "Password reset token is expired.");
+    public static readonly Error UsedPasswordResetToken = new("auth.used_password_reset_token", "Password reset token has already been used.");
 }
