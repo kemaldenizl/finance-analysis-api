@@ -64,9 +64,7 @@ public static class DependencyInjection
             throw new InvalidOperationException("Jwt signing key must be at least 32 characters.");
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer();
-        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IAccessTokenRevocationStore>((options, revocationStore) =>
+            .AddJwtBearer(options =>
             {
                 options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -91,6 +89,9 @@ public static class DependencyInjection
                 {
                     OnTokenValidated = async context =>
                     {
+
+                        var revocationStore = context.HttpContext.RequestServices.GetRequiredService<IAccessTokenRevocationStore>();
+
                         var principal = context.Principal;
                         if (principal is null)
                         {
