@@ -4,6 +4,7 @@ using Security.Domain.Auditing;
 using Security.Domain.Sessions;
 using Security.Domain.Tokens;
 using Security.Domain.Users;
+using Security.Domain.Mfa;
 
 namespace Security.Infrastructure.Persistence;
 
@@ -24,6 +25,9 @@ public sealed class SecurityDbContext : DbContext
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    public DbSet<MfaMethod> MfaMethods => Set<MfaMethod>();
+    public DbSet<RecoveryCode> RecoveryCodes => Set<RecoveryCode>();
+    
     public SecurityDbContext(DbContextOptions<SecurityDbContext> options) : base(options)
     {
     }
