@@ -51,9 +51,8 @@ public sealed class EmailVerificationTests
     [Fact]
     public async Task ResendVerification_Should_Return_Accepted_For_NonExisting_User()
     {
-        var response = await _client.PostAsJsonAsync("/api/auth/resend-verification",
-            new ResendVerificationRequest($"missing-{Guid.NewGuid():N}@example.com"));
-
+        var response = await _client.PostAsJsonAsync("/api/auth/resend-verification",new ResendVerificationRequest($"missing-{Guid.NewGuid():N}@example.com"));
+            
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
         var payload = await response.Content.ReadAsync<ResendVerificationResponse>();
@@ -67,9 +66,8 @@ public sealed class EmailVerificationTests
         var email = $"verify-complete-{Guid.NewGuid():N}@example.com";
         const string password = "Str0ng!Password123";
 
-        await _client.PostAsJsonAsync("/api/auth/register",
-            new RegisterRequest(email, password));
-
+        await _client.PostAsJsonAsync("/api/auth/register", new RegisterRequest(email, password));
+            
         string plainToken;
 
         using (var scope = _factory.Services.CreateScope())

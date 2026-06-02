@@ -5,3 +5,5 @@ public interface IRefreshTokenService
     (string PlainText, string Hash) Create();
     string Hash(string token);
 }
+
+//Kullanılmıyor iptal edilecek...
