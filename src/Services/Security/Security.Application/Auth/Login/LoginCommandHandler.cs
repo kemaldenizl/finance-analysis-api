@@ -7,6 +7,7 @@ using Security.Application.Abstractions.Security;
 using Security.Application.Abstractions.Time;
 using Security.Application.Abstractions.UnitOfWork;
 using Security.Application.Auth.Dtos;
+using Security.Application.Auth.Mfa.Dtos;
 using Security.Application.Common.Auditing;
 using Security.Application.Common.Errors;
 using Security.Application.Common.Results;
@@ -19,23 +20,30 @@ public sealed class LoginCommandHandler(
     IUserRepository userRepository,
     IRoleRepository roleRepository,
     IRefreshSessionRepository refreshSessionRepository,
+    IMfaMethodRepository mfaMethodRepository,
     IAuditLogRepository auditLogRepository,
     IAuditLogFactory auditLogFactory,
     IRequestContext requestContext,
     IPasswordHasher passwordHasher,
     IRefreshTokenGenerator refreshTokenGenerator,
     ITokenGenerator tokenGenerator,
+    IMfaChallengeTokenService mfaChallengeTokenService,
     IDateTimeProvider dateTimeProvider,
     IUnitOfWork unitOfWork)
     : IRequestHandler<LoginCommand, Result<LoginResponse>>
 {
+    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
+    private static readonly TimeSpan MfaChallengeLifetime = TimeSpan.FromMinutes(5);
     public async Task<Result<LoginResponse>> Handle(
         LoginCommand request,
         CancellationToken cancellationToken)
     {
         var normalizedEmail = request.Email.Trim().ToUpperInvariant();
 
-        var user = await userRepository.GetByNormalizedEmailAsync(normalizedEmail, cancellationToken);
+        var user = await userRepository.GetByNormalizedEmailAsync(
+            normalizedEmail,
+            cancellationToken);
+
         if (user is null)
         {
             await WriteFailedLoginAuditAsync(normalizedEmail, cancellationToken);
@@ -59,7 +67,7 @@ public sealed class LoginCommandHandler(
         user.MarkLogin(utcNow);
 
         var refreshTokenPair = refreshTokenGenerator.Generate();
-        var refreshTokenExpiresAtUtc = utcNow.AddDays(30);
+        var refreshTokenExpiresAtUtc = utcNow.Add(RefreshTokenLifetime);
 
         var session = new RefreshSession(
             Guid.NewGuid(),
@@ -76,6 +84,47 @@ public sealed class LoginCommandHandler(
             utcNow);
 
         session.AddToken(refreshToken);
+
+        var existingMfa = await mfaMethodRepository.GetByUserIdAsync(user.Id, cancellationToken);
+
+        if (existingMfa is { IsEnabled: true, IsVerified: true })
+        {
+            var challengeExpiresAtUtc = utcNow.Add(MfaChallengeLifetime);
+
+            var challengeToken = mfaChallengeTokenService.Create(
+                user.Id,
+                session.Id,
+                refreshTokenPair.PlainTextToken,
+                challengeExpiresAtUtc);
+
+            await refreshSessionRepository.AddAsync(session, cancellationToken);
+
+            var challengeAudit = auditLogFactory.Create(
+                AuditActionType.MfaLoginChallenged,
+                AuditPayloadBuilder.Build(new
+                {
+                    @event = "mfa_login_challenged",
+                    userId = user.Id,
+                    sessionId = session.Id
+                }),
+                user.Id);
+
+            await auditLogRepository.AddAsync(challengeAudit, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<LoginResponse>.Success(
+                new LoginResponse(
+                    new UserDto(
+                        user.Id,
+                        user.Email,
+                        user.EmailVerified,
+                        user.IsActive),
+                    null,
+                    new MfaChallengeResponse(
+                        challengeToken,
+                        challengeExpiresAtUtc),
+                    true));
+        }
 
         var permissions = await roleRepository.GetPermissionCodesByUserIdAsync(user.Id, cancellationToken);
 
@@ -107,7 +156,10 @@ public sealed class LoginCommandHandler(
                 accessToken.AccessToken,
                 accessToken.AccessTokenExpiresAtUtc,
                 refreshTokenPair.PlainTextToken,
-                refreshTokenExpiresAtUtc));
+                refreshTokenExpiresAtUtc),
+                null,
+                false
+            );
 
         return Result<LoginResponse>.Success(response);
     }

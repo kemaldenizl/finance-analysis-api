@@ -2,5 +2,7 @@ namespace Security.API.Contracts.Auth;
 
 public sealed record LoginResponse(
     UserResponse User,
-    AuthTokensResponse Tokens
+    AuthTokensResponse? Tokens,
+    MfaChallengeResponse? MfaChallenge,
+    bool RequiresMfa
 );

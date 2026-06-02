@@ -205,6 +205,15 @@ public static class DependencyInjection
         services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
         services.AddSingleton<IEmailVerificationTokenGenerator, EmailVerificationTokenGenerator>();
 
+        services.AddScoped<IMfaMethodRepository, MfaMethodRepository>();
+
+        services.AddSingleton<ITotpService, TotpService>();
+        services.AddSingleton<ITotpSecretProtector, TotpSecretProtector>();
+        services.AddSingleton<IRecoveryCodeService, RecoveryCodeService>();
+        services.AddSingleton<IMfaChallengeTokenService, MfaChallengeTokenService>();
+        
+        services.AddDataProtection();
+        
         return services;
     }
 }

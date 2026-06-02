@@ -18,5 +18,10 @@ public enum AuditActionType
     RoleAssigned = 14,
     RoleRemoved = 15,
     PermissionAssignedToRole = 16,
-    PermissionRemovedFromRole = 17
+    PermissionRemovedFromRole = 17,
+    MfaSetupStarted = 18,
+    MfaEnabled = 19,
+    MfaLoginChallenged = 20,
+    MfaLoginCompleted = 21,
+    MfaRecoveryCodeUsed = 22,
 }
