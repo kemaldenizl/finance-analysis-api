@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Options;
 using Security.Application.Abstractions.Auditing;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
@@ -14,21 +15,30 @@ namespace Security.Application.Auth.PasswordReset.ResetPassword;
 public sealed class ResetPasswordCommandHandler(
     IUserRepository userRepository,
     IPasswordResetTokenRepository passwordResetTokenRepository,
+    IRefreshSessionRepository refreshSessionRepository,
     IAuditLogRepository auditLogRepository,
     IAuditLogFactory auditLogFactory,
     IPasswordResetTokenGenerator passwordResetTokenGenerator,
     IPasswordHasher passwordHasher,
+    IAccessTokenRevocationStore accessTokenRevocationStore,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IOptions<SecurityTokenInvalidationOptions> invalidationOptions)
     : IRequestHandler<ResetPasswordCommand, Result>
 {
-    public async Task<Result> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
+    private readonly SecurityTokenInvalidationOptions _invalidationOptions = invalidationOptions.Value;
+
+    public async Task<Result> Handle(
+        ResetPasswordCommand request,
+        CancellationToken cancellationToken)
     {
         var utcNow = dateTimeProvider.UtcNow;
         var hashedToken = passwordResetTokenGenerator.Hash(request.Token);
 
-        var resetToken = await passwordResetTokenRepository.GetByTokenHashAsync(hashedToken, cancellationToken);
-            
+        var resetToken = await passwordResetTokenRepository.GetByTokenHashAsync(
+            hashedToken,
+            cancellationToken);
+
         if (resetToken is null)
         {
             return Result.Failure(AuthErrors.InvalidPasswordResetToken);
@@ -53,13 +63,28 @@ public sealed class ResetPasswordCommandHandler(
         user.ChangePasswordHash(passwordHasher.Hash(request.NewPassword));
         resetToken.MarkUsed(utcNow);
 
+        var sessions = await refreshSessionRepository.GetByUserIdAsync(user.Id, cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            session.Revoke(utcNow);
+        }
+
+        await accessTokenRevocationStore.RevokeUserAsync(
+            user.Id,
+            utcNow,
+            utcNow.AddHours(_invalidationOptions.UserInvalidationRetentionHours),
+            cancellationToken);
+
         var auditLog = auditLogFactory.Create(
             AuditActionType.PasswordResetCompleted,
             AuditPayloadBuilder.Build(new
             {
                 @event = "password_reset_completed",
                 userId = user.Id,
-                email = user.Email
+                email = user.Email,
+                sessionsRevoked = sessions.Count,
+                userAccessTokensInvalidated = true
             }),
             user.Id);
 

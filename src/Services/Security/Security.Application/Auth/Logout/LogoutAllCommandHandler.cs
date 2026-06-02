@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Options;
 using Security.Application.Abstractions.Auditing;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
@@ -16,9 +17,12 @@ public sealed class LogoutAllCommandHandler(
     IAuditLogFactory auditLogFactory,
     IAccessTokenRevocationStore accessTokenRevocationStore,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IOptions<SecurityTokenInvalidationOptions> invalidationOptions)
     : IRequestHandler<LogoutAllCommand, Result>
 {
+    private readonly SecurityTokenInvalidationOptions _invalidationOptions = invalidationOptions.Value;
+
     public async Task<Result> Handle(
         LogoutAllCommand request,
         CancellationToken cancellationToken)
@@ -39,13 +43,22 @@ public sealed class LogoutAllCommandHandler(
             request.AccessTokenExpiresAtUtc,
             cancellationToken);
 
+        await accessTokenRevocationStore.RevokeUserAsync(
+            request.UserId,
+            utcNow,
+            utcNow.AddHours(_invalidationOptions.UserInvalidationRetentionHours),
+            cancellationToken);
+
+        var revokedCount = sessions.Count;
+
         var auditLog = auditLogFactory.Create(
             AuditActionType.LogoutAllSessions,
             AuditPayloadBuilder.Build(new
             {
                 @event = "logout_all_sessions",
-                revokedCount = sessions.Count,
-                accessTokenJti = request.AccessTokenJti
+                revokedCount,
+                accessTokenJti = request.AccessTokenJti,
+                userAccessTokensInvalidated = true
             }),
             request.UserId);
 
