@@ -71,4 +71,15 @@ public sealed class MfaMethod : AggregateRoot
         codeHash = Guard.AgainstNullOrWhiteSpace(codeHash, nameof(codeHash));
         return _recoveryCodes.FirstOrDefault(x => x.CodeHash == codeHash && !x.Used);
     }
+
+    public void ResetPendingSecret(string secretHash, string secretEncrypted)
+    {
+        SecretHash = Guard.AgainstNullOrWhiteSpace(secretHash, nameof(secretHash));
+        SecretEncrypted = Guard.AgainstNullOrWhiteSpace(secretEncrypted, nameof(secretEncrypted));
+        IsVerified = false;
+        IsEnabled = false;
+        VerifiedAtUtc = null!;
+        DisabledAtUtc = null!;
+        _recoveryCodes.Clear();
+    }
 }
