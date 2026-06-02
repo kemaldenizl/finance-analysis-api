@@ -6,6 +6,8 @@ using AppRefreshTokenResponse = Security.Application.Auth.Refresh.RefreshTokenRe
 using AppRegisterResponse = Security.Application.Auth.Register.RegisterResponse;
 using AppForgotPasswordResponse = Security.Application.Auth.PasswordReset.Dtos.ForgotPasswordResponse;
 using AppResendVerificationResponse = Security.Application.Auth.EmailVerification.Dtos.ResendVerificationResponse;
+using AppBeginMfaSetupResponse = Security.Application.Auth.Mfa.Dtos.BeginMfaSetupResponse;
+using AppCompleteMfaSetupResponse = Security.Application.Auth.Mfa.Dtos.CompleteMfaSetupResponse;
 using System.Text.Json;
 
 namespace Security.API.Common.ErrorMapping;
@@ -71,11 +73,19 @@ public static class ApplicationResultMapper
                     result.Value.User.Email,
                     result.Value.User.EmailVerified,
                     result.Value.User.IsActive),
-                new AuthTokensResponse(
-                    result.Value.Tokens.AccessToken,
-                    result.Value.Tokens.AccessTokenExpiresAtUtc,
-                    result.Value.Tokens.RefreshToken,
-                    result.Value.Tokens.RefreshTokenExpiresAtUtc));
+                result.Value.Tokens is null
+                    ? null
+                    : new AuthTokensResponse(
+                        result.Value.Tokens.AccessToken,
+                        result.Value.Tokens.AccessTokenExpiresAtUtc,
+                        result.Value.Tokens.RefreshToken,
+                        result.Value.Tokens.RefreshTokenExpiresAtUtc),
+                result.Value.MfaChallenge is null
+                    ? null
+                    : new Contracts.Auth.MfaChallengeResponse(
+                        result.Value.MfaChallenge.ChallengeToken,
+                        result.Value.MfaChallenge.ExpiresAtUtc),
+                result.Value.RequiresMfa);
 
             return Results.Ok(response);
         }
@@ -95,6 +105,28 @@ public static class ApplicationResultMapper
                     result.Value.Tokens.RefreshTokenExpiresAtUtc));
 
             return Results.Ok(response);
+        }
+
+        return MapFailure(httpContext, result);
+    }
+    
+    public static IResult ToApiResult(this HttpContext httpContext, Result<AppBeginMfaSetupResponse> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Results.Ok(new Contracts.Auth.BeginMfaSetupResponse(
+            result.Value.ManualEntryKey,
+            result.Value.OtpAuthUri));
+        }
+
+        return MapFailure(httpContext, result);
+    }
+
+    public static IResult ToApiResult(this HttpContext httpContext, Result<AppCompleteMfaSetupResponse> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Results.Ok(new Contracts.Auth.CompleteMfaSetupResponse(result.Value.RecoveryCodes));
         }
 
         return MapFailure(httpContext, result);
@@ -230,6 +262,24 @@ public static class ApplicationResultMapper
                 httpContext.CreateProblemDetails(
                     StatusCodes.Status400BadRequest,
                     "Email already verified",
+                    result.Error.Description)),
+
+            "auth.mfa_not_initialized" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "MFA not initialized",
+                    result.Error.Description)),
+
+            "auth.invalid_mfa_code" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "Invalid MFA code",
+                    result.Error.Description)),
+
+            "auth.invalid_mfa_challenge" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status401Unauthorized,
+                    "Invalid MFA challenge",
                     result.Error.Description)),
 
             _ => httpContext.ToProblemResult(

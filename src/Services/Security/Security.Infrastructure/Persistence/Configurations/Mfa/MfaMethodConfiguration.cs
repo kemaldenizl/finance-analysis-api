@@ -17,7 +17,7 @@ public sealed class MfaMethodConfiguration : IEntityTypeConfiguration<MfaMethod>
         builder.Property(x => x.Type).HasConversion<int>().IsRequired();
         builder.Property(x => x.SecretHash).HasMaxLength(128).IsRequired();
         builder.Property(x => x.SecretEncrypted).IsRequired();
-        builder.Property(x => x.IsVerified).IsRequired();
+        builder.Property(x => x.IsVerified).IsRequired();           
         builder.Property(x => x.IsEnabled).IsRequired();
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.VerifiedAtUtc);
@@ -29,12 +29,13 @@ public sealed class MfaMethodConfiguration : IEntityTypeConfiguration<MfaMethod>
 
         builder.Ignore(x => x.DomainEvents);
 
-        builder.HasMany<RecoveryCode>("_recoveryCodes")
+        builder.HasMany(x => x.RecoveryCodes)
             .WithOne()
             .HasForeignKey(x => x.MfaMethodId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Navigation(x => x.RecoveryCodes)
+            .HasField("_recoveryCodes")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
