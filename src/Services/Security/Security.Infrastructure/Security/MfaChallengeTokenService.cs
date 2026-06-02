@@ -13,6 +13,7 @@ public sealed class MfaChallengeTokenService(IDataProtectionProvider dataProtect
 
     public string Create(Guid userId, Guid sessionId, string refreshToken, DateTime expiresAtUtc)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(refreshToken);
         var payload = new MfaChallengeTokenPayload(userId, sessionId, refreshToken, expiresAtUtc);
         var json = JsonSerializer.Serialize(payload);
         return _protector.Protect(json);
@@ -20,6 +21,8 @@ public sealed class MfaChallengeTokenService(IDataProtectionProvider dataProtect
 
     public MfaChallengeTokenPayload? Validate(string token)
     {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
         try
         {
             var json = _protector.Unprotect(token);
