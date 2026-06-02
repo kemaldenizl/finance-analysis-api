@@ -89,20 +89,72 @@ public static class DependencyInjection
                 {
                     OnTokenValidated = async context =>
                     {
-                        var jti = context.Principal?.FindFirst(CustomClaimTypes.JwtId)?.Value;
 
+                        var revocationStore = context.HttpContext.RequestServices.GetRequiredService<IAccessTokenRevocationStore>();
+
+                        var principal = context.Principal;
+                        if (principal is null)
+                        {
+                            context.Fail("Token principal is missing.");
+                            return;
+                        }
+
+                        var jti = principal.FindFirst(CustomClaimTypes.JwtId)?.Value;
                         if (string.IsNullOrWhiteSpace(jti))
                         {
                             context.Fail("Token does not contain a valid jti.");
                             return;
                         }
 
-                        var revocationStore = context.HttpContext.RequestServices.GetRequiredService<IAccessTokenRevocationStore>();
-                        var isRevoked = await revocationStore.IsRevokedAsync(jti, context.HttpContext.RequestAborted);
+                        var sub = principal.FindFirst(CustomClaimTypes.Subject)?.Value;
+                        if (!Guid.TryParse(sub, out var userId))
+                        {
+                            context.Fail("Token does not contain a valid subject.");
+                            return;
+                        }
 
-                        if (isRevoked)
+                        var iatValue = principal.FindFirst(CustomClaimTypes.IssuedAt)?.Value;
+                        if (!long.TryParse(iatValue, out var issuedAtUnix))
+                        {
+                            context.Fail("Token does not contain a valid iat.");
+                            return;
+                        }
+
+                        var issuedAtUtc = DateTimeOffset.FromUnixTimeSeconds(issuedAtUnix).UtcDateTime;
+
+                        var isJtiRevoked = await revocationStore.IsRevokedAsync(
+                            jti,
+                            context.HttpContext.RequestAborted);
+
+                        if (isJtiRevoked)
                         {
                             context.Fail("Token has been revoked.");
+                            return;
+                        }
+
+                        var isUserInvalidated = await revocationStore.IsUserTokenInvalidatedAsync(
+                            userId,
+                            issuedAtUtc,
+                            context.HttpContext.RequestAborted);
+
+                        if (isUserInvalidated)
+                        {
+                            context.Fail("User tokens have been invalidated.");
+                            return;
+                        }
+
+                        var sid = principal.FindFirst(CustomClaimTypes.SessionId)?.Value;
+                        if (Guid.TryParse(sid, out var sessionId))
+                        {
+                            var isSessionInvalidated = await revocationStore.IsSessionTokenInvalidatedAsync(
+                                sessionId,
+                                issuedAtUtc,
+                                context.HttpContext.RequestAborted);
+
+                            if (isSessionInvalidated)
+                            {
+                                context.Fail("Session tokens have been invalidated.");
+                            }
                         }
                     },
                     OnChallenge = async context =>
@@ -212,6 +264,8 @@ public static class DependencyInjection
         services.AddSingleton<IRecoveryCodeService, RecoveryCodeService>();
         services.AddSingleton<IMfaChallengeTokenService, MfaChallengeTokenService>();
         
+        services.Configure<SecurityTokenInvalidationOptions>(configuration.GetSection(SecurityTokenInvalidationOptions.SectionName));
+
         services.AddDataProtection();
         
         return services;

@@ -82,4 +82,9 @@ public sealed class MfaMethod : AggregateRoot
         DisabledAtUtc = null!;
         _recoveryCodes.Clear();
     }
+
+    public void ClearRecoveryCodes()
+    {
+        _recoveryCodes.Clear();
+    }
 }

@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Options;
 using Security.Application.Abstractions.Auditing;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
@@ -17,9 +18,12 @@ public sealed class RevokeSessionCommandHandler(
     IAuditLogFactory auditLogFactory,
     IAccessTokenRevocationStore accessTokenRevocationStore,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IOptions<SecurityTokenInvalidationOptions> invalidationOptions)
     : IRequestHandler<RevokeSessionCommand, Result>
 {
+    private readonly SecurityTokenInvalidationOptions _invalidationOptions = invalidationOptions.Value;
+
     public async Task<Result> Handle(
         RevokeSessionCommand request,
         CancellationToken cancellationToken)
@@ -42,6 +46,12 @@ public sealed class RevokeSessionCommandHandler(
 
         session.Revoke(utcNow);
 
+        await accessTokenRevocationStore.RevokeSessionAsync(
+            session.Id,
+            utcNow,
+            utcNow.AddHours(_invalidationOptions.SessionInvalidationRetentionHours),
+            cancellationToken);
+
         var isCurrentSession = request.CurrentSessionId.HasValue &&
                                request.CurrentSessionId.Value == session.Id;
 
@@ -60,7 +70,8 @@ public sealed class RevokeSessionCommandHandler(
                 @event = "session_revoked",
                 sessionId = session.Id,
                 isCurrentSession,
-                accessTokenJti = request.AccessTokenJti
+                accessTokenJti = request.AccessTokenJti,
+                sessionAccessTokensInvalidated = true
             }),
             request.UserId);
 

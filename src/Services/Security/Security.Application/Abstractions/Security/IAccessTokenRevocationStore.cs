@@ -12,4 +12,26 @@ public interface IAccessTokenRevocationStore
         string jti,
         CancellationToken cancellationToken = default
     );
+
+    Task RevokeUserAsync(
+        Guid userId,
+        DateTime invalidatedAtUtc,
+        DateTime absoluteExpirationUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> IsUserTokenInvalidatedAsync(
+        Guid userId,
+        DateTime tokenIssuedAtUtc,
+        CancellationToken cancellationToken = default);
+
+    Task RevokeSessionAsync(
+        Guid sessionId,
+        DateTime invalidatedAtUtc,
+        DateTime absoluteExpirationUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> IsSessionTokenInvalidatedAsync(
+        Guid sessionId,
+        DateTime tokenIssuedAtUtc,
+        CancellationToken cancellationToken = default);
 }

@@ -6,6 +6,8 @@ using Security.API.Contracts.Auth;
 using Security.Application.Auth.Mfa.BeginSetup;
 using Security.Application.Auth.Mfa.CompleteSetup;
 using Security.Application.Auth.Mfa.VerifyLogin;
+using Security.Application.Auth.Mfa.Disable;
+using Security.Application.Auth.Mfa.RecoveryCodes;
 using Security.Infrastructure.RateLimiting;
 
 namespace Security.API.Endpoints;
@@ -43,6 +45,28 @@ public static class MfaEndpoints
             .WithSummary("Completes MFA login challenge.")
             .Accepts<CompleteMfaLoginRequest>("application/json")
             .Produces<LoginResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .WithOpenApi();
+
+        group.MapPost("/disable", DisableAsync)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicyNames.VerifyEmail)
+            .WithName("DisableMfa")
+            .WithSummary("Disables MFA for the current user.")
+            .Accepts<DisableMfaRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .WithOpenApi();
+
+        group.MapPost("/recovery-codes/regenerate", RegenerateRecoveryCodesAsync)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicyNames.VerifyEmail)
+            .WithName("RegenerateRecoveryCodes")
+            .WithSummary("Regenerates MFA recovery codes.")
+            .Accepts<RegenerateRecoveryCodesRequest>("application/json")
+            .Produces<API.Contracts.Auth.RegenerateRecoveryCodesResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithOpenApi();
@@ -93,6 +117,41 @@ public static class MfaEndpoints
             request.ChallengeToken,
             request.TotpCode,
             request.RecoveryCode);
+
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> DisableAsync(
+        DisableMfaRequest request,
+        HttpContext httpContext,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.User.ToCurrentUser();
+
+        var command = new DisableMfaCommand(
+            currentUser.UserId,
+            request.TotpCode,
+            request.RecoveryCode);
+
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> RegenerateRecoveryCodesAsync(
+        RegenerateRecoveryCodesRequest request,
+        HttpContext httpContext,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = httpContext.User.ToCurrentUser();
+
+        var command = new RegenerateRecoveryCodesCommand(
+            currentUser.UserId,
+            request.TotpCode);
 
         var result = await sender.Send(command, cancellationToken);
 

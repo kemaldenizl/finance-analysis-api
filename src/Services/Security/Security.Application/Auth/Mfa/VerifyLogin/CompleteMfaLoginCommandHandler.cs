@@ -117,7 +117,7 @@ public sealed class CompleteMfaLoginCommandHandler(
                 new AuthTokensDto(
                     accessToken.AccessToken,
                     accessToken.AccessTokenExpiresAtUtc,
-                    string.Empty, // burada plaintext refresh token elimizde yok
+                    payload.RefreshToken, // burada plaintext refresh token elimizde yok
                     latestRefreshToken.ExpiresAtUtc),
                 null,
                 false));

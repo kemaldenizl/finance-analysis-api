@@ -24,4 +24,6 @@ public enum AuditActionType
     MfaLoginChallenged = 20,
     MfaLoginCompleted = 21,
     MfaRecoveryCodeUsed = 22,
+    MfaDisabled = 23,
+    RecoveryCodesRegenerated = 24
 }

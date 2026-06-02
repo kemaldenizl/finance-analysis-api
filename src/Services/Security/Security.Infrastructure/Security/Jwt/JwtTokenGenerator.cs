@@ -30,7 +30,7 @@ public sealed class JwtTokenGenerator(IOptions<JwtOptions> options) : ITokenGene
             new(CustomClaimTypes.Subject, userId.ToString()),
             new(CustomClaimTypes.Email, email),
             new(CustomClaimTypes.JwtId, Guid.NewGuid().ToString("N")),
-            new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+            new(CustomClaimTypes.IssuedAt, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
         };
 
         if (sessionId.HasValue)

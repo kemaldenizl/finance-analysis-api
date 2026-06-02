@@ -22,4 +22,6 @@ public static class AuthErrors
     public static readonly Error ExpiredEmailVerificationToken = new("auth.expired_email_verification_token", "Email verification token is expired.");
     public static readonly Error UsedEmailVerificationToken = new("auth.used_email_verification_token", "Email verification token has already been used.");
     public static readonly Error EmailAlreadyVerified = new("auth.email_already_verified", "Email is already verified.");
+    public static readonly Error MfaNotEnabled = new("auth.mfa_not_enabled", "MFA is not enabled.");
+    public static readonly Error InvalidMfaCode = new("auth.invalid_mfa_code", "The MFA code is invalid.");
 }

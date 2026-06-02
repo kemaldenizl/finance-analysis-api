@@ -8,6 +8,7 @@ using AppForgotPasswordResponse = Security.Application.Auth.PasswordReset.Dtos.F
 using AppResendVerificationResponse = Security.Application.Auth.EmailVerification.Dtos.ResendVerificationResponse;
 using AppBeginMfaSetupResponse = Security.Application.Auth.Mfa.Dtos.BeginMfaSetupResponse;
 using AppCompleteMfaSetupResponse = Security.Application.Auth.Mfa.Dtos.CompleteMfaSetupResponse;
+using AppRegenerateRecoveryCodesResponse = Security.Application.Auth.Mfa.RecoveryCodes.RegenerateRecoveryCodesResponse;
 using System.Text.Json;
 
 namespace Security.API.Common.ErrorMapping;
@@ -127,6 +128,16 @@ public static class ApplicationResultMapper
         if (result.IsSuccess)
         {
             return Results.Ok(new Contracts.Auth.CompleteMfaSetupResponse(result.Value.RecoveryCodes));
+        }
+
+        return MapFailure(httpContext, result);
+    }
+
+    public static IResult ToApiResult(this HttpContext httpContext, Result<AppRegenerateRecoveryCodesResponse> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Results.Ok(new Contracts.Auth.RegenerateRecoveryCodesResponse(result.Value.RecoveryCodes));
         }
 
         return MapFailure(httpContext, result);
@@ -274,6 +285,12 @@ public static class ApplicationResultMapper
                 httpContext.CreateProblemDetails(
                     StatusCodes.Status400BadRequest,
                     "Invalid MFA code",
+                    result.Error.Description)),
+
+            "auth.mfa_not_enabled" => httpContext.ToProblemResult(
+                httpContext.CreateProblemDetails(
+                    StatusCodes.Status400BadRequest,
+                    "MFA not enabled",
                     result.Error.Description)),
 
             "auth.invalid_mfa_challenge" => httpContext.ToProblemResult(
