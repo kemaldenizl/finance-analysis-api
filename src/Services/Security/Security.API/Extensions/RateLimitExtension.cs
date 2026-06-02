@@ -94,6 +94,50 @@ public static class RateLimitExtension
                         QueueLimit = rateLimitOptions.Sessions.QueueLimit,
                         AutoReplenishment = rateLimitOptions.Sessions.AutoReplenishment
                     }));
+
+            options.AddPolicy(RateLimitPolicyNames.ForgotPassword, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "forgot-password"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ForgotPassword.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ForgotPassword.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ForgotPassword.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ForgotPassword.AutoReplenishment
+                    }));
+
+            options.AddPolicy(RateLimitPolicyNames.ResetPassword, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "reset-password"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ResetPassword.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ResetPassword.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ResetPassword.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ResetPassword.AutoReplenishment
+                    }));
+            
+            options.AddPolicy(RateLimitPolicyNames.VerifyEmail, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "verify-email"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.VerifyEmail.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.VerifyEmail.WindowSeconds),
+                        QueueLimit = rateLimitOptions.VerifyEmail.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.VerifyEmail.AutoReplenishment
+                    }));
+
+            options.AddPolicy(RateLimitPolicyNames.ResendVerification, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: RateLimitPartitionKeys.ByIp(httpContext, "resend-verification"),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ResendVerification.PermitLimit,
+                        Window = TimeSpan.FromSeconds(rateLimitOptions.ResendVerification.WindowSeconds),
+                        QueueLimit = rateLimitOptions.ResendVerification.QueueLimit,
+                        AutoReplenishment = rateLimitOptions.ResendVerification.AutoReplenishment
+                    }));
         });
 
         return services;

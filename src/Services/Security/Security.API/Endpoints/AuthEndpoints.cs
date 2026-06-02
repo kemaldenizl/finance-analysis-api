@@ -11,6 +11,10 @@ using Security.Application.Auth.Refresh;
 using Security.Application.Auth.Logout;
 using Security.Application.Common.Results;
 using Security.Infrastructure.RateLimiting;
+using Security.Application.Auth.PasswordReset.ForgotPassword;
+using Security.Application.Auth.PasswordReset.ResetPassword;
+using Security.Application.Auth.EmailVerification.ResendVerification;
+using Security.Application.Auth.EmailVerification.VerifyEmail;
 
 namespace Security.API.Endpoints;
 
@@ -78,6 +82,52 @@ public static class AuthEndpoints
             .WithDescription("Revokes all sessions belonging to the current authenticated user.")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/forgot-password", ForgotPasswordAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.ForgotPassword)
+            .WithName("ForgotPassword")
+            .WithSummary("Starts the password reset flow.")
+            .WithDescription("Generates a password reset token if the account exists.")
+            .Accepts<ForgotPasswordRequest>("application/json")
+            .Produces<ForgotPasswordResponse>(StatusCodes.Status202Accepted)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/reset-password", ResetPasswordAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.ResetPassword)
+            .WithName("ResetPassword")
+            .WithSummary("Completes the password reset flow.")
+            .WithDescription("Validates the password reset token and changes the user's password.")
+            .Accepts<ResetPasswordRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/verify-email", VerifyEmailAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.VerifyEmail)
+            .WithName("VerifyEmail")
+            .WithSummary("Verifies the user's email address.")
+            .WithDescription("Validates an email verification token and marks the email as verified.")
+            .Accepts<VerifyEmailRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .WithOpenApi();
+
+        group.MapPost("/resend-verification", ResendVerificationAsync)
+            .RequireRateLimiting(RateLimitPolicyNames.ResendVerification)
+            .WithName("ResendVerification")
+            .WithSummary("Resends the email verification flow.")
+            .WithDescription("Generates a new email verification token if the account exists and is not verified.")
+            .Accepts<ResendVerificationRequest>("application/json")
+            .Produces<ResendVerificationResponse>(StatusCodes.Status202Accepted)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
             .WithOpenApi();
 
@@ -171,15 +221,44 @@ public static class AuthEndpoints
             return Results.Problem(
                 title: "Invalid token context",
                 detail: "The current access token does not contain a valid JWT identifier.",
-                statusCode: StatusCodes.Status400BadRequest);
+                statusCode: StatusCodes.Status400BadRequest
+            );
         }
 
-        var command = new LogoutAllCommand(
-            currentUser.UserId,
-            currentUser.AccessTokenJti,
-            currentAccessToken.ExpiresAtUtc
-        );
+        var command = new LogoutAllCommand(currentUser.UserId, currentUser.AccessTokenJti, currentAccessToken.ExpiresAtUtc);
+        var result = await sender.Send(command, cancellationToken);
 
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> ForgotPasswordAsync(ForgotPasswordRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken) 
+    {
+        var command = new ForgotPasswordCommand(request.Email);
+
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> ResetPasswordAsync(ResetPasswordRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken)
+    {
+        var command = new ResetPasswordCommand(request.Token, request.NewPassword);
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> VerifyEmailAsync(VerifyEmailRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken)
+    {
+        var command = new VerifyEmailCommand(request.Token);
+        var result = await sender.Send(command, cancellationToken);
+
+        return httpContext.ToApiResult(result);
+    }
+
+    private static async Task<IResult> ResendVerificationAsync(ResendVerificationRequest request, HttpContext httpContext, ISender sender, CancellationToken cancellationToken)
+    {
+        var command = new ResendVerificationCommand(request.Email);
         var result = await sender.Send(command, cancellationToken);
 
         return httpContext.ToApiResult(result);

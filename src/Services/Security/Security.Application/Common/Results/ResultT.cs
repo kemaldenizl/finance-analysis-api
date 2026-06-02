@@ -16,10 +16,7 @@ public sealed class Result<TValue> : Result
         _value = default;
     }
 
-    public TValue Value =>
-        IsSuccess
-            ? _value!
-            : throw new InvalidOperationException("Failure result does not have a value.");
+    public TValue Value => IsSuccess ? _value! : throw new InvalidOperationException("Failure result does not have a value.");
 
     public static Result<TValue> Success(TValue value) => new(value);
 

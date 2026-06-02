@@ -9,22 +9,25 @@ using Security.Application.Common.Auditing;
 using Security.Application.Common.Errors;
 using Security.Application.Common.Results;
 using Security.Domain.Auditing;
+using Security.Domain.Tokens;
 using Security.Domain.Users;
 
 namespace Security.Application.Auth.Register;
 
 public sealed class RegisterCommandHandler(
     IUserRepository userRepository,
+    IEmailVerificationTokenRepository emailVerificationTokenRepository,
     IAuditLogRepository auditLogRepository,
     IAuditLogFactory auditLogFactory,
     IPasswordHasher passwordHasher,
+    IEmailVerificationTokenGenerator emailVerificationTokenGenerator,
     IDateTimeProvider dateTimeProvider,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RegisterCommand, Result<RegisterResponse>>
 {
-    public async Task<Result<RegisterResponse>> Handle(
-        RegisterCommand request,
-        CancellationToken cancellationToken)
+    private static readonly TimeSpan VerificationTokenLifetime = TimeSpan.FromHours(24);
+
+    public async Task<Result<RegisterResponse>> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
         var normalizedEmail = request.Email.Trim().ToUpperInvariant();
 
@@ -45,26 +48,45 @@ public sealed class RegisterCommandHandler(
 
         await userRepository.AddAsync(user, cancellationToken);
 
+        var tokenPair = emailVerificationTokenGenerator.Generate();
+
+        var verificationToken = new EmailVerificationToken(
+            Guid.NewGuid(),
+            user.Id,
+            tokenPair.HashedToken,
+            utcNow.Add(VerificationTokenLifetime),
+            utcNow);
+
+        await emailVerificationTokenRepository.AddAsync(verificationToken, cancellationToken);
+
         var auditLog = auditLogFactory.Create(
             AuditActionType.UserRegistered,
             AuditPayloadBuilder.Build(new
             {
                 @event = "user_registered",
                 userId = user.Id,
-                email = user.Email
+                email = user.Email,
+                emailVerificationStarted = true
             }),
             user.Id);
 
         await auditLogRepository.AddAsync(auditLog, cancellationToken);
+
+        var verificationAuditLog = auditLogFactory.Create(
+            AuditActionType.EmailVerificationRequested,
+            AuditPayloadBuilder.Build(new
+            {
+                @event = "email_verification_requested",
+                userId = user.Id,
+                email = user.Email,
+                reason = "register"
+            }),
+            user.Id);
+
+        await auditLogRepository.AddAsync(verificationAuditLog, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var response = new RegisterResponse(
-            new UserDto(
-                user.Id,
-                user.Email,
-                user.EmailVerified,
-                user.IsActive));
-
+        var response = new RegisterResponse(new UserDto(user.Id, user.Email, user.EmailVerified, user.IsActive));
         return Result<RegisterResponse>.Success(response);
     }
 }
