@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Security.Application.Abstractions.Auditing;
+using Security.Application.Abstractions.Email;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
 using Security.Application.Abstractions.Time;
@@ -18,8 +20,10 @@ public sealed class ResendVerificationCommandHandler(
     IAuditLogRepository auditLogRepository,
     IAuditLogFactory auditLogFactory,
     IEmailVerificationTokenGenerator emailVerificationTokenGenerator,
+    IEmailSender emailSender,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ResendVerificationCommandHandler> logger)
     : IRequestHandler<ResendVerificationCommand, Result<ResendVerificationResponse>>
 {
     private static readonly TimeSpan VerificationTokenLifetime = TimeSpan.FromHours(24);
@@ -59,7 +63,20 @@ public sealed class ResendVerificationCommandHandler(
             await auditLogRepository.AddAsync(auditLog, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Gerçek sistemde email dispatch/outbox burada olacak.
+            try
+            {
+                await emailSender.SendEmailVerificationAsync(
+                    user.Email,
+                    tokenPair.PlainTextToken,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Email verification resend mail could not be sent. UserId: {UserId}",
+                    user.Id);
+            }
         }
 
         return Result<ResendVerificationResponse>.Success(

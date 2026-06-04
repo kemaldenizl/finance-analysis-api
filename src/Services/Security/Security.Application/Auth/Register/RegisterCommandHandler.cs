@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Security.Application.Abstractions.Auditing;
+using Security.Application.Abstractions.Email;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
 using Security.Application.Abstractions.Time;
@@ -21,8 +23,10 @@ public sealed class RegisterCommandHandler(
     IAuditLogFactory auditLogFactory,
     IPasswordHasher passwordHasher,
     IEmailVerificationTokenGenerator emailVerificationTokenGenerator,
+    IEmailSender emailSender,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<RegisterCommandHandler> logger)
     : IRequestHandler<RegisterCommand, Result<RegisterResponse>>
 {
     private static readonly TimeSpan VerificationTokenLifetime = TimeSpan.FromHours(24);
@@ -85,6 +89,21 @@ public sealed class RegisterCommandHandler(
 
         await auditLogRepository.AddAsync(verificationAuditLog, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await emailSender.SendEmailVerificationAsync(
+                user.Email,
+                tokenPair.PlainTextToken,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Email verification mail could not be sent after registration. UserId: {UserId}",
+                user.Id);
+        }
 
         var response = new RegisterResponse(new UserDto(user.Id, user.Email, user.EmailVerified, user.IsActive));
         return Result<RegisterResponse>.Success(response);

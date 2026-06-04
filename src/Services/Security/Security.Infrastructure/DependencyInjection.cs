@@ -26,7 +26,9 @@ using Security.Application.Abstractions.RequestContext;
 using Security.Infrastructure.Auditing;
 using Security.Infrastructure.RequestContext;
 using Microsoft.AspNetCore.Mvc;
-
+using Security.Application.Abstractions.Email;
+using Security.Infrastructure.Email;
+using Resend;
 
 namespace Security.Infrastructure;
 
@@ -267,7 +269,24 @@ public static class DependencyInjection
         services.Configure<SecurityTokenInvalidationOptions>(configuration.GetSection(SecurityTokenInvalidationOptions.SectionName));
 
         services.AddDataProtection();
-        
+
+        services.Configure<ResendEmailOptions>(configuration.GetSection(ResendEmailOptions.SectionName));
+        services.AddHttpClient<ResendClient>();
+        services.Configure<ResendClientOptions>(options =>
+        {
+            var apiKey = configuration["Resend:ApiKey"];
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("Resend:ApiKey is missing.");
+            }
+
+            options.ApiToken = apiKey;
+        });
+
+        services.AddTransient<IResend, ResendClient>();
+        services.AddScoped<IEmailSender, ResendEmailSender>();
+
         return services;
     }
 }

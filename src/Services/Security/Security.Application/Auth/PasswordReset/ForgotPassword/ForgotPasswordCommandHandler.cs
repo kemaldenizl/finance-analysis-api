@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Security.Application.Abstractions.Auditing;
+using Security.Application.Abstractions.Email;
 using Security.Application.Abstractions.Persistence;
 using Security.Application.Abstractions.Security;
 using Security.Application.Abstractions.Time;
@@ -18,8 +20,10 @@ public sealed class ForgotPasswordCommandHandler(
     IAuditLogRepository auditLogRepository,
     IAuditLogFactory auditLogFactory,
     IPasswordResetTokenGenerator passwordResetTokenGenerator,
+    IEmailSender emailSender,
     IDateTimeProvider dateTimeProvider,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ForgotPasswordCommandHandler> logger)
     : IRequestHandler<ForgotPasswordCommand, Result<ForgotPasswordResponse>>
 {
     private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromMinutes(30);
@@ -56,8 +60,22 @@ public sealed class ForgotPasswordCommandHandler(
             await auditLogRepository.AddAsync(auditLog, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Burada gerçek sistemde email dispatch/outbox olacak.
-            // Şimdilik token taşıması API response'a konmuyor.
+            try
+            {
+                await emailSender.SendPasswordResetAsync(
+                    user.Email,
+                    tokenPair.PlainTextToken,
+                    cancellationToken
+                );
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Password reset email could not be sent. UserId: {UserId}",
+                    user.Id
+                );
+            }
         }
 
         return Result<ForgotPasswordResponse>.Success(new ForgotPasswordResponse("If the account exists, a password reset link has been generated."));
