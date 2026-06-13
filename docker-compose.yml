@@ -1,0 +1,112 @@
+name: finance-analysis
+
+services:
+  security-redis:
+    image: redis:7
+    container_name: security-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - security_redis_data:/data
+    networks:
+      - finance-network
+
+  kemal-db:
+    image: postgres:16
+    container_name: kemal_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - kemal_db_data:/var/lib/postgresql/data
+    networks:
+      - finance-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    depends_on:
+      - kemal-db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - finance-network
+
+  security-api:
+    build:
+      context: .
+      dockerfile: src/Services/Security/Security.API/Dockerfile
+    container_name: security-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ConnectionStrings__Postgres: "Host=kemal-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};"
+      ConnectionStrings__Redis: "security-redis:6379"
+      Resend__ApiKey: ${RESEND_API_KEY}
+      Resend__FromEmail: ${RESEND_FROM_EMAIL}
+    ports:
+      - "7001:8080"
+    depends_on:
+      - kemal-db
+      - security-redis
+    networks:
+      - finance-network
+
+  transactions-api:
+    build:
+      context: .
+      dockerfile: src/Services/Transactions/Transactions.WebAPI/Dockerfile
+    container_name: transactions-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      InputsApi__BaseUrl: "http://host.docker.internal:8000"
+    ports:
+      - "7002:8080"
+    networks:
+      - finance-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateways/FinanceAnalysis.ApiGateway/Dockerfile
+    container_name: finance-api-gateway
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+
+      ReverseProxy__Clusters__security-cluster__Destinations__security-api__Address: "http://security-api:8080/"
+      ReverseProxy__Clusters__transactions-cluster__Destinations__transactions-api__Address: "http://transactions-api:8080/"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - security-api
+      - transactions-api
+    networks:
+      - finance-network
+
+volumes:
+  kemal_db_data:
+  security_redis_data:
+  pgadmin_data:
+
+networks:
+  finance-network:
+    driver: bridge
