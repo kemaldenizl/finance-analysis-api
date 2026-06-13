@@ -92,6 +92,15 @@ public sealed class RegisterCommandHandler(
 
         try
         {
+            logger.LogInformation(
+                "Sending email verification mail to user. UserId: {UserId}, Email: {Email}",
+                user.Id,
+                user.Email);
+
+            logger.LogInformation(
+                "Email verification token: {Token}",
+                tokenPair.PlainTextToken);
+                
             await emailSender.SendEmailVerificationAsync(
                 user.Email,
                 tokenPair.PlainTextToken,
